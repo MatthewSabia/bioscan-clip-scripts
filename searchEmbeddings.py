@@ -6,83 +6,81 @@ import json
 import hydra
 import pandas
 import time
-
-def index_data(name, obj):
-    # embeddings.visititems(index_data)
-    # print(name)
-    print(obj)
-
-    if isinstance(obj, h5py.Dataset):
-        data = obj[()][:]
-        # print(data)
-        # return data
-
+import random
 
 def main():
+    # get embeddings from file
+    embeddings_file = h5py.File('extracted_features_of_all_keys.hdf5', 'r')
 
-    # get embeddings from file and initialize index
-    embeddings_file = h5py.File('extracted_feature_from_val_split.hdf5', 'r')
+    # variable and index initialization
     dim = 768
-    index = faiss.IndexFlatIP(dim)
+    count = 0
+
+    image_index = faiss.IndexFlatIP(dim)
+    id_index = faiss.IndexFlatIP(dim)
 
     startTime = time.time()
-    count = 0
-    # add all necessary embeddings to index
+
+    # create dict
+    file_dict = {}
+    ref_dict = {}
+    i = 0
+    for object in embeddings_file["file_name"]:
+        str_obj = str(object)
+        file_dict[str_obj] = embeddings_file["encoded_image_feature"][i:i+1]
+        ref_dict[str_obj] = i
+        i += 1
+        # print(i)
+    
+    finishDict = time.time()
+    dictTime = finishDict - startTime
+    print("Time to make dict: ", dictTime)
+
+    # print(file_list)
+
+    # add embeddings to index
     for key in embeddings_file.keys():
-        keyGet = embeddings_file[key]
-        for data in keyGet:
-            if (data != "concatenated_feautre" and data != "averaged_feature" and embeddings_file[key][data][:].shape[1] == dim):
-                embedding = embeddings_file[key][data][:]
-                embedding = torch.from_numpy(embedding).cuda()
-                embedding = torch.nn.functional.normalize(embedding, dim=1)
-                embedding = embedding.cpu().numpy()
-                index.add(embedding)
-                count += 1
-                # index.add(embeddings_file[key][data][:])
-            
-    # print total time elapsed
-    endTime = time.time()
-    totalTime = endTime - startTime
-    print("Time to build index: ", totalTime)
-    print("Count: ", count)
-    # print(totalTime)
+        if (key == "encoded_image_feature"):
+            embedding = embeddings_file[key][:]
+            embedding = embedding.astype(np.float32)
+            image_index.add(embedding)
 
+    finishIndex = time.time()
+    indexTime = finishIndex - finishDict
+    print("Time to make index: ", indexTime)
+    print()
+    
+    # b'4565393.jpg'
+    while (True):
+        raw_input_id = input("Enter a sample ID to search for: ")
+        input_id = raw_input_id.lower()
 
+        if (input_id == "exit"):
+            exit()
 
-    # embeddings = np.array(embeddings, dtype=np.float32)
-    # embeddings = embeddings.astype(np.float32)
+        # get input in embedding form
+        try:
+            search_embedding = file_dict[raw_input_id]
+            ID = True
+        except:
+            print("Given ID does not exist.")
+            print()
+            ID = False
+        
+        # search for embedding
+        if (ID == True):
+            num_neighbors = 10
+            search_embedding = search_embedding.astype(np.float32)
+            D, I = image_index.search(search_embedding, num_neighbors)
+            print("The 10 closest embeddings are: ")
+            for i in range(num_neighbors):
+                print(str(i+1) + ".", I[0][i])
+            print()
+        
+        
 
-    # # might need to normalize data? unsure
-    # embeddings = torch.from_numpy(embeddings).cuda() # creates tensor from numpy array
-    # embeddings = torch.nn.functional.normalize(embeddings) # normalize tensor
-    # embeddings = embeddings.cpu().numpy() # convert tensors back to numpy array
-
-    # # create index and add datasets to the index
-    # d = 2 # 2 was dimension size when printing vectors in visititems
-    # index = faiss.IndexFlatIP(d) 
-    # index.add(embeddings)
-
-    # print(index.is_trained)
-    # print(index.ntotal)
-
-    # query = input("Enter query: ")
-    # numbers = input("Enter number of neighbors: ")
-
-    # # record start time
-    # startTime = time.time()
-
-    # # search and print results
-    # D, I = index.search(query, numbers)
-    # print("The closest " + numbers + " models are:\n")
-    # for i in numbers:
-    #     print(I[:i])
-
-
-    # # print total time elapsed
-    # endTime = time.time()
-    # totalTime = startTime - endTime
-    # print("Time: " + totalTime)
-
+    
+    
 
 
 
